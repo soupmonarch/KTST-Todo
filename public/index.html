@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KTST Task Matrix · Live</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    background: #fafaf7; color: #2b2b2b;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
+  h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .sub { color: #888; font-size: 13px; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: #555; margin: 12px 0 18px; flex-wrap: wrap; }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .chart-card { background: #fff; border: 1px solid #ececec; border-radius: 14px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); position: relative; }
+  svg { width: 100%; height: auto; display: block; }
+  .grain { cursor: pointer; transition: transform 0.15s ease, filter 0.15s ease; transform-box: fill-box; transform-origin: center; }
+  .grain:hover { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25)); transform: scale(1.25); }
+  .grain-label { font-size: 11px; fill: #333; pointer-events: none; }
+  .axis-line { stroke: #ddd; stroke-width: 1; }
+  .axis-mid { stroke: #c8c8c8; stroke-width: 1; stroke-dasharray: 4 3; }
+  .axis-label { font-size: 12px; fill: #777; }
+  .axis-tick { font-size: 10px; fill: #999; }
+  .quad-label { font-size: 11px; font-weight: 600; fill: #b8b8b8; letter-spacing: 0.04em; }
+  .quad-bg { opacity: 0.35; }
+  #tooltip { position: absolute; pointer-events: none; background: #1f1f1f; color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0,0,0,0.2); transform: translate(-50%, calc(-100% - 12px)); opacity: 0; transition: opacity 0.12s ease; white-space: nowrap; z-index: 10; }
+  #tooltip b { font-weight: 600; }
+  #tooltip .row { color: #cfcfcf; }
+  .status-pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-left: 4px; }
+  .status-NextUp { background: #eee; color: #444; }
+  .status-InProgress { background: #fff3c4; color: #7a5a00; }
+  .status-Completed { background: #d1fae5; color: #065f46; }
+  table.list { width: 100%; border-collapse: collapse; margin-top: 22px; font-size: 13px; }
+  table.list th, table.list td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; }
+  table.list th { color: #888; font-weight: 500; font-size: 12px; }
+  table.list a { color: #2b2b2b; text-decoration: none; }
+  table.list a:hover { text-decoration: underline; }
+  .footer { margin-top: 18px; color: #aaa; font-size: 11px; display: flex; justify-content: space-between; }
+  .reload-btn { background: #2b2b2b; color: #fff; border: 0; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  .reload-btn:hover { background: #000; }
+  .reload-btn:disabled { opacity: 0.5; cursor: wait; }
+  .err { background: #fef2f2; color: #991b1b; padding: 12px; border-radius: 8px; font-size: 13px; }
+  .loading { color: #999; font-size: 13px; padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🎒 KTST Task Matrix <span style="font-size:11px; color:#22c55e; font-weight:500; margin-left:6px;">● LIVE</span></h1>
+      <div class="sub">긴급도(가로) × 중요도(세로) — Notion API 실시간 연동</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div class="sub" id="meta"></div>
+      <button class="reload-btn" id="reload">↻ 새로고침</button>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#8b5cf6"></span>Priority 5 (High)</span>
+    <span><span class="dot" style="background:#ef4444"></span>Priority 4</span>
+    <span><span class="dot" style="background:#22c55e"></span>Priority 3</span>
+    <span><span class="dot" style="background:#f97316"></span>Priority 2</span>
+    <span><span class="dot" style="background:#9ca3af"></span>Priority 1 (Low)</span>
+  </div>
+
+  <div class="chart-card">
+    <div id="status"></div>
+    <svg id="chart" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="tooltip"></div>
+  </div>
+
+  <table class="list">
+    <thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Due</th><th>D-day</th></tr></thead>
+    <tbody id="task-list"></tbody>
+  </table>
+
+  <div class="footer">
+    <span id="foot-left">Notion API로 실시간 동기화 · 서버리스 함수 캐시 60s</span>
+    <span id="foot-right"></span>
+  </div>
+</div>
+
+<script>
+const URGENCY_HORIZON_DAYS = 30;
+const PRIORITY_COLORS = { 5: "#8b5cf6", 4: "#ef4444", 3: "#22c55e", 2: "#f97316", 1: "#9ca3af" };
+const PRIORITY_LABELS = { 5: "5 (High)", 4: "4", 3: "3", 2: "2", 1: "1 (Low)" };
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  return Math.round((d - today) / (1000*60*60*24));
+}
+function urgencyScore(daysLeft) {
+  if (daysLeft == null) return 0.15;
+  if (daysLeft <= 0) return 1.0;
+  if (daysLeft >= URGENCY_HORIZON_DAYS) return 0.05;
+  return 1.0 - (daysLeft / URGENCY_HORIZON_DAYS);
+}
+function importanceScore(priority) {
+  if (priority == null) return 0.0;
+  return (priority - 1) / 4;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+const W = 1000, H = 600;
+const M = { top: 30, right: 40, bottom: 60, left: 70 };
+const plotW = W - M.left - M.right;
+const plotH = H - M.top - M.bottom;
+
+const svg = document.getElementById("chart");
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, parent = svg) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  parent.appendChild(e);
+  return e;
+}
+
+const tooltip = document.getElementById("tooltip");
+const card = svg.parentElement;
+
+function showTip(e, task) {
+  const rect = card.getBoundingClientRect();
+  tooltip.style.left = (e.clientX - rect.left) + "px";
+  tooltip.style.top  = (e.clientY - rect.top) + "px";
+  const dleft = daysUntil(task.due);
+  const dlabel = dleft == null ? "마감 없음" : (dleft === 0 ? "D-day" : (dleft > 0 ? "D-" + dleft : "D+" + (-dleft)));
+  const statusKey = (task.status || "").replace(/\s/g,'');
+  tooltip.innerHTML =
+    `<b>${escapeHtml(task.name || "(제목 없음)")}</b>` +
+    (task.status ? `<span class="status-pill status-${statusKey}">${escapeHtml(task.status)}</span>` : "") +
+    `<div class="row">Priority ${task.priorityLabel || "-"}</div>` +
+    `<div class="row">Due ${task.due ?? "-"} · ${dlabel}</div>` +
+    (task.assignees && task.assignees.length ? `<div class="row">${escapeHtml(task.assignees.join(", "))}</div>` : "") +
+    `<div class="row" style="color:#888;font-size:10px;margin-top:4px">클릭 → Notion 열기</div>`;
+  tooltip.style.opacity = 1;
+}
+function hideTip() { tooltip.style.opacity = 0; }
+
+function drawChartFrame() {
+  svg.innerHTML = "";
+  const quadColors = [
+    { x:0.5, y:0.5, w:0.5, h:0.5, fill:"#fde68a" },
+    { x:0,   y:0.5, w:0.5, h:0.5, fill:"#bbf7d0" },
+    { x:0.5, y:0,   w:0.5, h:0.5, fill:"#fecaca" },
+    { x:0,   y:0,   w:0.5, h:0.5, fill:"#e5e7eb" },
+  ];
+  for (const q of quadColors) {
+    el("rect", { x: M.left + q.x*plotW, y: M.top + (1 - q.y - q.h)*plotH, width: q.w*plotW, height: q.h*plotH, fill: q.fill, class: "quad-bg" });
+  }
+  const quadTexts = [
+    { x: M.left + plotW - 8, y: M.top + 16, anchor: "end", t: "Q1 · DO 즉시" },
+    { x: M.left + 8,         y: M.top + 16, anchor: "start", t: "Q2 · PLAN 계획" },
+    { x: M.left + plotW - 8, y: M.top + plotH - 8, anchor: "end", t: "Q3 · DELEGATE 위임" },
+    { x: M.left + 8,         y: M.top + plotH - 8, anchor: "start", t: "Q4 · DROP 제거" },
+  ];
+  for (const t of quadTexts) {
+    const txt = el("text", { x: t.x, y: t.y, "text-anchor": t.anchor, class: "quad-label" });
+    txt.textContent = t.t;
+  }
+  el("line", { x1: M.left + plotW/2, y1: M.top, x2: M.left + plotW/2, y2: M.top + plotH, class: "axis-mid" });
+  el("line", { x1: M.left, y1: M.top + plotH/2, x2: M.left + plotW, y2: M.top + plotH/2, class: "axis-mid" });
+  el("line", { x1: M.left, y1: M.top + plotH, x2: M.left + plotW, y2: M.top + plotH, class: "axis-line" });
+  el("line", { x1: M.left, y1: M.top, x2: M.left, y2: M.top + plotH, class: "axis-line" });
+  const xticks = [
+    { v: 0.05, label: "30+ days" },
+    { v: 0.5,  label: "~15 days" },
+    { v: 0.85, label: "5 days" },
+    { v: 1.0,  label: "오늘 / 지남" },
+  ];
+  for (const t of xticks) {
+    const x = M.left + t.v * plotW;
+    el("line", { x1: x, y1: M.top + plotH, x2: x, y2: M.top + plotH + 5, class: "axis-line" });
+    const txt = el("text", { x: x, y: M.top + plotH + 18, "text-anchor": "middle", class: "axis-tick" });
+    txt.textContent = t.label;
+  }
+  const xlab = el("text", { x: M.left + plotW/2, y: M.top + plotH + 44, "text-anchor": "middle", class: "axis-label" });
+  xlab.textContent = "긴급도 →  (Due Date 가 가까울수록 오른쪽)";
+  for (let p = 1; p <= 5; p++) {
+    const y = M.top + (1 - importanceScore(p)) * plotH;
+    el("line", { x1: M.left - 5, y1: y, x2: M.left, y2: y, class: "axis-line" });
+    const txt = el("text", { x: M.left - 10, y: y + 4, "text-anchor": "end", class: "axis-tick" });
+    txt.textContent = "P" + p;
+  }
+  const ylab = el("text", { x: 18, y: M.top + plotH/2, "text-anchor": "middle", class: "axis-label", transform: `rotate(-90, 18, ${M.top + plotH/2})` });
+  ylab.textContent = "중요도 →  (Priority 높을수록 위)";
+}
+
+function drawGrains(tasks) {
+  // Jitter로 겹침 완화 (같은 좌표 다수 task가 겹치지 않도록)
+  const buckets = new Map();
+  for (const task of tasks) {
+    const ux = urgencyScore(daysUntil(task.due));
+    const uy = importanceScore(task.priority);
+    const key = `${Math.round(ux*40)}_${Math.round(uy*40)}`;
+    const arr = buckets.get(key) || [];
+    arr.push({ task, ux, uy });
+    buckets.set(key, arr);
+  }
+  for (const arr of buckets.values()) {
+    arr.forEach((item, i) => {
+      const angle = (i / Math.max(arr.length, 1)) * Math.PI * 2;
+      const radius = arr.length > 1 ? 14 : 0;
+      const jitterX = Math.cos(angle) * radius;
+      const jitterY = Math.sin(angle) * radius;
+      const cx = M.left + item.ux * plotW + jitterX;
+      const cy = M.top + (1 - item.uy) * plotH + jitterY;
+      const color = PRIORITY_COLORS[item.task.priority] || "#999";
+      const g = el("g", { class: "grain", transform: `translate(${cx}, ${cy})` });
+      el("ellipse", { cx: 0, cy: 0, rx: 11, ry: 6, fill: color, stroke: "#fff", "stroke-width": 1.5, transform: "rotate(-18)" }, g);
+      const lab = el("text", { x: 0, y: -12, "text-anchor": "middle", class: "grain-label" }, g);
+      lab.textContent = item.task.name || "";
+      g.addEventListener("mousemove", (e) => showTip(e, item.task));
+      g.addEventListener("mouseleave", hideTip);
+      g.addEventListener("click", () => { if (item.task.url) window.open(item.task.url, "_blank"); });
+    });
+  }
+}
+
+function renderList(tasks) {
+  const tbody = document.getElementById("task-list");
+  tbody.innerHTML = "";
+  const sorted = [...tasks].sort((a,b) => (daysUntil(a.due) ?? 9999) - (daysUntil(b.due) ?? 9999));
+  for (const task of sorted) {
+    const dleft = daysUntil(task.due);
+    const dlabel = dleft == null ? "-" : (dleft === 0 ? "D-day" : (dleft > 0 ? "D-" + dleft : "D+" + (-dleft)));
+    const statusKey = (task.status || "").replace(/\s/g,'');
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><a href="${task.url}" target="_blank">${escapeHtml(task.name || "(제목 없음)")}</a></td>
+      <td>${task.status ? `<span class="status-pill status-${statusKey}">${escapeHtml(task.status)}</span>` : "-"}</td>
+      <td>${task.priority ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${PRIORITY_COLORS[task.priority]};margin-right:6px;vertical-align:-1px"></span>${PRIORITY_LABELS[task.priority]}` : "-"}</td>
+      <td>${task.due ?? "-"}</td>
+      <td>${dlabel}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function load() {
+  const btn = document.getElementById("reload");
+  const status = document.getElementById("status");
+  btn.disabled = true;
+  status.innerHTML = `<div class="loading">Notion에서 불러오는 중…</div>`;
+  drawChartFrame();
+  try {
+    const r = await fetch("/api/tasks");
+    if (!r.ok) {
+      const txt = await r.text();
+      status.innerHTML = `<div class="err">로딩 실패 (${r.status}): ${escapeHtml(txt.slice(0, 300))}</div>`;
+      btn.disabled = false;
+      return;
+    }
+    const data = await r.json();
+    status.innerHTML = "";
+    drawChartFrame();
+    drawGrains(data.tasks || []);
+    renderList(data.tasks || []);
+    document.getElementById("meta").textContent = `총 ${data.count}개 task`;
+    document.getElementById("foot-right").textContent = `마지막 동기화 ${new Date(data.snapshotAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`;
+  } catch (e) {
+    status.innerHTML = `<div class="err">네트워크 오류: ${escapeHtml(String(e))}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("reload").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>
