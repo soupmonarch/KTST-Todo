@@ -192,8 +192,7 @@ function render(data) {
   legend.innerHTML = "";
 
   meta.textContent = `${data.count}개 task · ${new Date(data.snapshotAt).toLocaleTimeString("ko-KR")} 기준`;
-  status.textContent = data.count === 0 ? "표시할 task가 없습니다 (모두 Completed이거
-ub098 비어있음)." : "";
+  status.textContent = data.count === 0 ? "표시할 task가 없습니다." : "";
 
   drawFrame(svg);
 
