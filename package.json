@@ -1,0 +1,9 @@
+{
+  "name": "ktst-task-matrix-live",
+  "version": "1.0.0",
+  "description": "KTST to-do tasks visualized as a 2D urgency x importance scatter plot, synced live via the Notion API.",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
