@@ -1,8 +1,7 @@
 // Vercel Serverless Function: /api/tasks
 // Notion API 2025-09-03 (multi data source 지원)
-// - DB 안의 여러 data source를 순회
-// - 각 data source의 스키마를 먼저 조회해서 있는 속성에 맞게 필터/매핑
-// - Name 또는 title 속성이 없는 data source는 건너뜀
+// 스키마: Sub-Task(title), Status, Urgency, Importance, Due Date, Start Date,
+//         Lead, Task Owner, Category 1/2/3, Task, EPIC, Project, Customer
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2025-09-03";
@@ -27,6 +26,12 @@ function readTitle(prop) {
   if (!prop || prop.type !== "title") return "";
   return (prop.title || []).map(t => t.plain_text).join("");
 }
+function readText(prop) {
+  if (!prop) return "";
+  if (prop.type === "rich_text") return (prop.rich_text || []).map(t => t.plain_text).join("");
+  if (prop.type === "title") return (prop.title || []).map(t => t.plain_text).join("");
+  return "";
+}
 function readSelect(prop) {
   if (!prop) return null;
   if (prop.type === "select") return prop.select?.name ?? null;
@@ -41,8 +46,12 @@ function readPeople(prop) {
   if (!prop || prop.type !== "people") return [];
   return (prop.people || []).map(p => p.name || p.id);
 }
-function parsePriority(s) {
-  if (!s) return null;
+function readRelationIds(prop) {
+  if (!prop || prop.type !== "relation") return [];
+  return (prop.relation || []).map(r => r.id);
+}
+function parseNum(s) {
+  if (s == null) return null;
   const m = String(s).match(/(\d+)/);
   return m ? parseInt(m[1], 10) : null;
 }
@@ -90,7 +99,7 @@ module.exports = async (req, res) => {
     const skipped = [];
 
     for (const ds of dataSources) {
-      // 1.5) 이 data source의 스키마 조회
+      // 2) data source 스키마 조회
       const schemaResp = await notionFetch(`${NOTION_API}/data_sources/${ds.id}`, token);
       if (!schemaResp.ok) {
         skipped.push({ id: ds.id, reason: `schema fetch failed (${schemaResp.status})` });
@@ -99,19 +108,29 @@ module.exports = async (req, res) => {
       const schema = await schemaResp.json();
       const props = schema.properties || {};
 
-      // 속성 이름 자동 감지 (소문자 무관)
-      const titleKey = findPropByName(props, ["Name", "Title", "이름", "제목"]) || findPropByType(props, "title");
-      const statusKey = findPropByName(props, ["Status", "상태"]);
-      const priorityKey = findPropByName(props, ["Priority", "우선순위"]);
-      const dueKey = findPropByName(props, ["Due Date", "Due", "Deadline", "마감일"]);
-      const assignKey = findPropByName(props, ["Assign", "Assignee", "담당자"]);
+      // 3) 속성 이름 자동 감지
+      const titleKey      = findPropByName(props, ["Sub-Task", "Subtask", "Sub Task", "Name", "Title", "이름", "제목"]) || findPropByType(props, "title");
+      const statusKey     = findPropByName(props, ["Status", "상태"]);
+      const urgencyKey    = findPropByName(props, ["Urgency", "긴급도"]);
+      const importanceKey = findPropByName(props, ["Importance", "중요도", "Priority", "우선순위"]);
+      const dueKey        = findPropByName(props, ["Due Date", "Due", "Deadline", "마감일"]);
+      const startKey      = findPropByName(props, ["Start Date", "Start", "시작일"]);
+      const leadKey       = findPropByName(props, ["Lead", "리드"]);
+      const ownerKey      = findPropByName(props, ["Task Owner", "Owner", "Assign", "Assignee", "담당자"]);
+      const cat1Key       = findPropByName(props, ["Category 1", "Category1"]);
+      const cat2Key       = findPropByName(props, ["Category 2", "Category2"]);
+      const cat3Key       = findPropByName(props, ["Category 3", "Category3"]);
+      const taskKey       = findPropByName(props, ["Task"]);
+      const epicKey       = findPropByName(props, ["EPIC", "Epic"]);
+      const projectKey    = findPropByName(props, ["Project", "프로젝트"]);
+      const customerKey   = findPropByName(props, ["Customer", "고객"]);
 
       if (!titleKey) {
         skipped.push({ id: ds.id, reason: "no title property" });
         continue;
       }
 
-      // 2) 조건부 필터 (Status 속성이 있을 때만)
+      // 4) 조건부 필터 (Status 속성이 있을 때만)
       const body = { page_size: 100 };
       const statusProp = statusKey ? props[statusKey] : null;
       if (statusKey && statusProp) {
@@ -147,21 +166,27 @@ module.exports = async (req, res) => {
         }
         const data = await r.json();
         for (const page of data.results || []) {
-          const name = readTitle(page.properties?.[titleKey]);
           const status = statusKey ? readSelect(page.properties?.[statusKey]) : null;
-          const priorityStr = priorityKey ? readSelect(page.properties?.[priorityKey]) : null;
-          const due = dueKey ? readDate(page.properties?.[dueKey]) : null;
-          const assignees = assignKey ? readPeople(page.properties?.[assignKey]) : [];
-          // 클라이언트에서도 Completed 걸러내기 (filter 적용 안된 data source 용)
           if (status === "Completed") continue;
           tasks.push({
             id: page.id,
-            name,
+            name: readTitle(page.properties?.[titleKey]),
             status,
-            priority: parsePriority(priorityStr),
-            priorityLabel: priorityStr,
-            due,
-            assignees,
+            urgency: urgencyKey ? parseNum(readSelect(page.properties?.[urgencyKey])) : null,
+            urgencyLabel: urgencyKey ? readSelect(page.properties?.[urgencyKey]) : null,
+            importance: importanceKey ? parseNum(readSelect(page.properties?.[importanceKey])) : null,
+            importanceLabel: importanceKey ? readSelect(page.properties?.[importanceKey]) : null,
+            due: dueKey ? readDate(page.properties?.[dueKey]) : null,
+            start: startKey ? readDate(page.properties?.[startKey]) : null,
+            lead: leadKey ? readPeople(page.properties?.[leadKey]) : [],
+            owner: ownerKey ? readPeople(page.properties?.[ownerKey]) : [],
+            category1: cat1Key ? readSelect(page.properties?.[cat1Key]) : null,
+            category2: cat2Key ? readSelect(page.properties?.[cat2Key]) : null,
+            category3: cat3Key ? readSelect(page.properties?.[cat3Key]) : null,
+            task: taskKey ? readText(page.properties?.[taskKey]) : "",
+            epic: epicKey ? readText(page.properties?.[epicKey]) : "",
+            projectIds: projectKey ? readRelationIds(page.properties?.[projectKey]) : [],
+            customerIds: customerKey ? readRelationIds(page.properties?.[customerKey]) : [],
             url: page.url,
             dataSourceId: ds.id
           });
