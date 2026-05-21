@@ -1,279 +1,310 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KTST Task Matrix · Live</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>KTST Task Matrix</title>
 <style>
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0; min-height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Apple SD Gothic Neo", sans-serif;
-    background: #fafaf7; color: #2b2b2b;
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: #1f2937; background: #ffffff;
   }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
-  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
-  h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-  .sub { color: #888; font-size: 13px; }
-  .legend { display: flex; gap: 16px; font-size: 12px; color: #555; margin: 12px 0 18px; flex-wrap: wrap; }
-  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
-  .chart-card { background: #fff; border: 1px solid #ececec; border-radius: 14px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); position: relative; }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid #e5e7eb;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; background: #ecfdf5; color: #047857;
+    border-radius: 999px; font-size: 11px; font-weight: 600;
+  }
+  .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  #meta { margin-left: auto; font-size: 12px; color: #6b7280; }
+  #reloadBtn { background: #f3f4f6; border: 1px solid #d1d5db; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  #reloadBtn:hover { background: #e5e7eb; }
+  main { padding: 16px 20px 24px; }
+  #status { font-size: 13px; color: #6b7280; padding: 8px 0; }
+  #chart-wrap { position: relative; width: 100%; }
   svg { width: 100%; height: auto; display: block; }
-  .grain { cursor: pointer; transition: transform 0.15s ease, filter 0.15s ease; transform-box: fill-box; transform-origin: center; }
-  .grain:hover { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25)); transform: scale(1.25); }
-  .grain-label { font-size: 11px; fill: #333; pointer-events: none; }
-  .axis-line { stroke: #ddd; stroke-width: 1; }
-  .axis-mid { stroke: #c8c8c8; stroke-width: 1; stroke-dasharray: 4 3; }
-  .axis-label { font-size: 12px; fill: #777; }
-  .axis-tick { font-size: 10px; fill: #999; }
-  .quad-label { font-size: 11px; font-weight: 600; fill: #b8b8b8; letter-spacing: 0.04em; }
-  .quad-bg { opacity: 0.35; }
-  #tooltip { position: absolute; pointer-events: none; background: #1f1f1f; color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0,0,0,0.2); transform: translate(-50%, calc(-100% - 12px)); opacity: 0; transition: opacity 0.12s ease; white-space: nowrap; z-index: 10; }
-  #tooltip b { font-weight: 600; }
-  #tooltip .row { color: #cfcfcf; }
-  .status-pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-left: 4px; }
-  .status-NextUp { background: #eee; color: #444; }
-  .status-InProgress { background: #fff3c4; color: #7a5a00; }
-  .status-Completed { background: #d1fae5; color: #065f46; }
-  table.list { width: 100%; border-collapse: collapse; margin-top: 22px; font-size: 13px; }
-  table.list th, table.list td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; }
-  table.list th { color: #888; font-weight: 500; font-size: 12px; }
-  table.list a { color: #2b2b2b; text-decoration: none; }
-  table.list a:hover { text-decoration: underline; }
-  .footer { margin-top: 18px; color: #aaa; font-size: 11px; display: flex; justify-content: space-between; }
-  .reload-btn { background: #2b2b2b; color: #fff; border: 0; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
-  .reload-btn:hover { background: #000; }
-  .reload-btn:disabled { opacity: 0.5; cursor: wait; }
-  .err { background: #fef2f2; color: #991b1b; padding: 12px; border-radius: 8px; font-size: 13px; }
-  .loading { color: #999; font-size: 13px; padding: 40px 0; text-align: center; }
+  .grain { cursor: pointer; transition: r 0.12s, stroke-width 0.12s; }
+  .grain:hover { stroke: #111827; stroke-width: 2; }
+  .axis-label { font-size: 11px; fill: #6b7280; font-weight: 500; }
+  .quad-label { font-size: 10px; fill: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .axis-tick { font-size: 9px; fill: #9ca3af; }
+  #tooltip {
+    position: absolute; pointer-events: none; background: #111827; color: #f9fafb;
+    padding: 8px 11px; border-radius: 6px; font-size: 11px; line-height: 1.5;
+    max-width: 260px; opacity: 0; transition: opacity 0.1s; z-index: 10;
+  }
+  #tooltip .t-name { font-weight: 600; margin-bottom: 4px; font-size: 12px; }
+  #tooltip .t-row { color: #d1d5db; }
+  #tooltip .t-row b { color: #f9fafb; font-weight: 500; }
+  #legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 11px; color: #4b5563; }
+  #legend .item { display: inline-flex; align-items: center; gap: 5px; }
+  #legend .swatch { width: 10px; height: 10px; border-radius: 50%; }
+  table.task-list { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12px; }
+  table.task-list th, table.task-list td { text-align: left; padding: 6px 9px; border-bottom: 1px solid #e5e7eb; }
+  table.task-list th { background: #f9fafb; font-weight: 600; color: #374151; }
+  table.task-list a { color: #2563eb; text-decoration: none; }
+  table.task-list a:hover { text-decoration: underline; }
+  .err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <h1>🎒 KTST Task Matrix <span style="font-size:11px; color:#22c55e; font-weight:500; margin-left:6px;">● LIVE</span></h1>
-      <div class="sub">긴급도(가로) × 중요도(세로) — Notion API 실시간 연동</div>
-    </div>
-    <div style="display:flex; gap:10px; align-items:center;">
-      <div class="sub" id="meta"></div>
-      <button class="reload-btn" id="reload">↻ 새로고침</button>
-    </div>
-  </header>
-
-  <div class="legend">
-    <span><span class="dot" style="background:#8b5cf6"></span>Priority 5 (High)</span>
-    <span><span class="dot" style="background:#ef4444"></span>Priority 4</span>
-    <span><span class="dot" style="background:#22c55e"></span>Priority 3</span>
-    <span><span class="dot" style="background:#f97316"></span>Priority 2</span>
-    <span><span class="dot" style="background:#9ca3af"></span>Priority 1 (Low)</span>
-  </div>
-
-  <div class="chart-card">
-    <div id="status"></div>
-    <svg id="chart" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+<header>
+  <h1>KTST Task Matrix</h1>
+  <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+  <span id="meta"></span>
+  <button id="reloadBtn" onclick="loadData()">↻ 새로고침</button>
+</header>
+<main>
+  <div id="status">로딩 중…</div>
+  <div id="chart-wrap">
+    <svg id="chart" viewBox="0 0 800 560" preserveAspectRatio="xMidYMid meet"></svg>
     <div id="tooltip"></div>
   </div>
-
-  <table class="list">
-    <thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Due</th><th>D-day</th></tr></thead>
-    <tbody id="task-list"></tbody>
-  </table>
-
-  <div class="footer">
-    <span id="foot-left">Notion API로 실시간 동기화 · 서버리스 함수 캐시 60s</span>
-    <span id="foot-right"></span>
-  </div>
-</div>
-
+  <div id="legend"></div>
+  <div id="list"></div>
+</main>
 <script>
-const URGENCY_HORIZON_DAYS = 30;
-const PRIORITY_COLORS = { 5: "#8b5cf6", 4: "#ef4444", 3: "#22c55e", 2: "#f97316", 1: "#9ca3af" };
-const PRIORITY_LABELS = { 5: "5 (High)", 4: "4", 3: "3", 2: "2", 1: "1 (Low)" };
+const W = 800, H = 560;
+const PAD = { top: 40, right: 30, bottom: 60, left: 60 };
+const INNER_W = W - PAD.left - PAD.right;
+const INNER_H = H - PAD.top - PAD.bottom;
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const d = new Date(dateStr); d.setHours(0,0,0,0);
-  return Math.round((d - today) / (1000*60*60*24));
-}
-function urgencyScore(daysLeft) {
-  if (daysLeft == null) return 0.15;
-  if (daysLeft <= 0) return 1.0;
-  if (daysLeft >= URGENCY_HORIZON_DAYS) return 0.05;
-  return 1.0 - (daysLeft / URGENCY_HORIZON_DAYS);
-}
-function importanceScore(priority) {
-  if (priority == null) return 0.0;
-  return (priority - 1) / 4;
-}
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+// Category 3 색상 매핑 (Notion select 색상과 유사)
+const CAT3_COLORS = {
+  "Sales": "#ec4899",   // pink
+  "Tech":  "#f97316",   // orange
+  "PM":    "#6b7280",   // gray (default)
+  "Service": "#ef4444", // red
+  "_none": "#cbd5e1"   // 미설정
+};
+function colorForCat3(c) { return CAT3_COLORS[c] || CAT3_COLORS._none; }
 
-const W = 1000, H = 600;
-const M = { top: 30, right: 40, bottom: 60, left: 70 };
-const plotW = W - M.left - M.right;
-const plotH = H - M.top - M.bottom;
-
-const svg = document.getElementById("chart");
-const NS = "http://www.w3.org/2000/svg";
-function el(tag, attrs = {}, parent = svg) {
-  const e = document.createElementNS(NS, tag);
-  for (const k in attrs) e.setAttribute(k, attrs[k]);
-  parent.appendChild(e);
-  return e;
+// 점 크기: importance에 비례 (3~9px)
+function radiusFor(importance) {
+  const i = Math.max(1, Math.min(10, importance || 5));
+  return 3 + (i / 10) * 6;
 }
 
-const tooltip = document.getElementById("tooltip");
-const card = svg.parentElement;
-
-function showTip(e, task) {
-  const rect = card.getBoundingClientRect();
-  tooltip.style.left = (e.clientX - rect.left) + "px";
-  tooltip.style.top  = (e.clientY - rect.top) + "px";
-  const dleft = daysUntil(task.due);
-  const dlabel = dleft == null ? "마감 없음" : (dleft === 0 ? "D-day" : (dleft > 0 ? "D-" + dleft : "D+" + (-dleft)));
-  const statusKey = (task.status || "").replace(/\s/g,'');
-  tooltip.innerHTML =
-    `<b>${escapeHtml(task.name || "(제목 없음)")}</b>` +
-    (task.status ? `<span class="status-pill status-${statusKey}">${escapeHtml(task.status)}</span>` : "") +
-    `<div class="row">Priority ${task.priorityLabel || "-"}</div>` +
-    `<div class="row">Due ${task.due ?? "-"} · ${dlabel}</div>` +
-    (task.assignees && task.assignees.length ? `<div class="row">${escapeHtml(task.assignees.join(", "))}</div>` : "") +
-    `<div class="row" style="color:#888;font-size:10px;margin-top:4px">클릭 → Notion 열기</div>`;
-  tooltip.style.opacity = 1;
+function scaleX(urgency) {
+  // 1~10 → 0~1
+  const u = Math.max(1, Math.min(10, urgency == null ? 5 : urgency));
+  return (u - 1) / 9;
 }
-function hideTip() { tooltip.style.opacity = 0; }
+function scaleY(importance) {
+  // 1~10 → 0~1 (높을수록 위로)
+  const i = Math.max(1, Math.min(10, importance == null ? 5 : importance));
+  return 1 - (i - 1) / 9;
+}
 
-function drawChartFrame() {
-  svg.innerHTML = "";
-  const quadColors = [
-    { x:0.5, y:0.5, w:0.5, h:0.5, fill:"#fde68a" },
-    { x:0,   y:0.5, w:0.5, h:0.5, fill:"#bbf7d0" },
-    { x:0.5, y:0,   w:0.5, h:0.5, fill:"#fecaca" },
-    { x:0,   y:0,   w:0.5, h:0.5, fill:"#e5e7eb" },
+function px(x) { return PAD.left + x * INNER_W; }
+function py(y) { return PAD.top + y * INNER_H; }
+
+function drawFrame(svg) {
+  // 4사분면 배경 (Q1 우상 / Q2 좌상 / Q3 우하 / Q4 좌하)
+  // 기준: 중앙점 = (5.5, 5.5)
+  const midX = px(scaleX(5.5));
+  const midY = py(scaleY(5.5));
+  const quads = [
+    { x: midX, y: PAD.top, w: PAD.left + INNER_W - midX, h: midY - PAD.top, fill: "#fde68a33", label: "Q1 • 긴급·중요", lx: PAD.left + INNER_W - 8, ly: PAD.top + 14, anchor: "end" },
+    { x: PAD.left, y: PAD.top, w: midX - PAD.left, h: midY - PAD.top, fill: "#bbf7d033", label: "Q2 • 계획", lx: PAD.left + 8, ly: PAD.top + 14, anchor: "start" },
+    { x: midX, y: midY, w: PAD.left + INNER_W - midX, h: PAD.top + INNER_H - midY, fill: "#fecaca33", label: "Q3 • 위임", lx: PAD.left + INNER_W - 8, ly: PAD.top + INNER_H - 6, anchor: "end" },
+    { x: PAD.left, y: midY, w: midX - PAD.left, h: PAD.top + INNER_H - midY, fill: "#e5e7eb55", label: "Q4 • 제거", lx: PAD.left + 8, ly: PAD.top + INNER_H - 6, anchor: "start" }
   ];
-  for (const q of quadColors) {
-    el("rect", { x: M.left + q.x*plotW, y: M.top + (1 - q.y - q.h)*plotH, width: q.w*plotW, height: q.h*plotH, fill: q.fill, class: "quad-bg" });
+  for (const q of quads) {
+    svg.insertAdjacentHTML("beforeend",
+      `<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" fill="${q.fill}"/>` +
+      `<text class="quad-label" x="${q.lx}" y="${q.ly}" text-anchor="${q.anchor}">${q.label}</text>`
+    );
   }
-  const quadTexts = [
-    { x: M.left + plotW - 8, y: M.top + 16, anchor: "end", t: "Q1 · DO 즉시" },
-    { x: M.left + 8,         y: M.top + 16, anchor: "start", t: "Q2 · PLAN 계획" },
-    { x: M.left + plotW - 8, y: M.top + plotH - 8, anchor: "end", t: "Q3 · DELEGATE 위임" },
-    { x: M.left + 8,         y: M.top + plotH - 8, anchor: "start", t: "Q4 · DROP 제거" },
-  ];
-  for (const t of quadTexts) {
-    const txt = el("text", { x: t.x, y: t.y, "text-anchor": t.anchor, class: "quad-label" });
-    txt.textContent = t.t;
+
+  // 교차 축 (중앙선)
+  svg.insertAdjacentHTML("beforeend",
+    `<line x1="${midX}" y1="${PAD.top}" x2="${midX}" y2="${PAD.top + INNER_H}" stroke="#e5e7eb" stroke-dasharray="3,3"/>` +
+    `<line x1="${PAD.left}" y1="${midY}" x2="${PAD.left + INNER_W}" y2="${midY}" stroke="#e5e7eb" stroke-dasharray="3,3"/>`
+  );
+
+  // 외곽 사각형
+  svg.insertAdjacentHTML("beforeend",
+    `<rect x="${PAD.left}" y="${PAD.top}" width="${INNER_W}" height="${INNER_H}" fill="none" stroke="#d1d5db"/>`
+  );
+
+  // 축 레이블
+  svg.insertAdjacentHTML("beforeend",
+    `<text class="axis-label" x="${PAD.left + INNER_W / 2}" y="${H - 22}" text-anchor="middle">Urgency → (높을수록 긴급)</text>` +
+    `<text class="axis-label" x="${20}" y="${PAD.top + INNER_H / 2}" text-anchor="middle" transform="rotate(-90 20 ${PAD.top + INNER_H / 2})">Importance ↑ (높을수록 중요)</text>`
+  );
+
+  // 틱 (1, 5, 10)
+  for (const v of [1, 5, 10]) {
+    const x = px(scaleX(v));
+    svg.insertAdjacentHTML("beforeend", `<text class="axis-tick" x="${x}" y="${PAD.top + INNER_H + 14}" text-anchor="middle">${v}</text>`);
+    const y = py(scaleY(v));
+    svg.insertAdjacentHTML("beforeend", `<text class="axis-tick" x="${PAD.left - 8}" y="${y + 3}" text-anchor="end">${v}</text>`);
   }
-  el("line", { x1: M.left + plotW/2, y1: M.top, x2: M.left + plotW/2, y2: M.top + plotH, class: "axis-mid" });
-  el("line", { x1: M.left, y1: M.top + plotH/2, x2: M.left + plotW, y2: M.top + plotH/2, class: "axis-mid" });
-  el("line", { x1: M.left, y1: M.top + plotH, x2: M.left + plotW, y2: M.top + plotH, class: "axis-line" });
-  el("line", { x1: M.left, y1: M.top, x2: M.left, y2: M.top + plotH, class: "axis-line" });
-  const xticks = [
-    { v: 0.05, label: "30+ days" },
-    { v: 0.5,  label: "~15 days" },
-    { v: 0.85, label: "5 days" },
-    { v: 1.0,  label: "오늘 / 지남" },
-  ];
-  for (const t of xticks) {
-    const x = M.left + t.v * plotW;
-    el("line", { x1: x, y1: M.top + plotH, x2: x, y2: M.top + plotH + 5, class: "axis-line" });
-    const txt = el("text", { x: x, y: M.top + plotH + 18, "text-anchor": "middle", class: "axis-tick" });
-    txt.textContent = t.label;
-  }
-  const xlab = el("text", { x: M.left + plotW/2, y: M.top + plotH + 44, "text-anchor": "middle", class: "axis-label" });
-  xlab.textContent = "긴급도 →  (Due Date 가 가까울수록 오른쪽)";
-  for (let p = 1; p <= 5; p++) {
-    const y = M.top + (1 - importanceScore(p)) * plotH;
-    el("line", { x1: M.left - 5, y1: y, x2: M.left, y2: y, class: "axis-line" });
-    const txt = el("text", { x: M.left - 10, y: y + 4, "text-anchor": "end", class: "axis-tick" });
-    txt.textContent = "P" + p;
-  }
-  const ylab = el("text", { x: 18, y: M.top + plotH/2, "text-anchor": "middle", class: "axis-label", transform: `rotate(-90, 18, ${M.top + plotH/2})` });
-  ylab.textContent = "중요도 →  (Priority 높을수록 위)";
 }
 
-function drawGrains(tasks) {
-  // Jitter로 겹침 완화 (같은 좌표 다수 task가 겹치지 않도록)
-  const buckets = new Map();
-  for (const task of tasks) {
-    const ux = urgencyScore(daysUntil(task.due));
-    const uy = importanceScore(task.priority);
-    const key = `${Math.round(ux*40)}_${Math.round(uy*40)}`;
-    const arr = buckets.get(key) || [];
-    arr.push({ task, ux, uy });
-    buckets.set(key, arr);
+function jitterOverlaps(points) {
+  // 같은 좌표에 여러 task가 모이면 원형으로 흔트림
+  const groups = {};
+  for (const p of points) {
+    const key = `${Math.round(p.x * 50)}_${Math.round(p.y * 50)}`;
+    (groups[key] = groups[key] || []).push(p);
   }
-  for (const arr of buckets.values()) {
-    arr.forEach((item, i) => {
-      const angle = (i / Math.max(arr.length, 1)) * Math.PI * 2;
-      const radius = arr.length > 1 ? 14 : 0;
-      const jitterX = Math.cos(angle) * radius;
-      const jitterY = Math.sin(angle) * radius;
-      const cx = M.left + item.ux * plotW + jitterX;
-      const cy = M.top + (1 - item.uy) * plotH + jitterY;
-      const color = PRIORITY_COLORS[item.task.priority] || "#999";
-      const g = el("g", { class: "grain", transform: `translate(${cx}, ${cy})` });
-      el("ellipse", { cx: 0, cy: 0, rx: 11, ry: 6, fill: color, stroke: "#fff", "stroke-width": 1.5, transform: "rotate(-18)" }, g);
-      const lab = el("text", { x: 0, y: -12, "text-anchor": "middle", class: "grain-label" }, g);
-      lab.textContent = item.task.name || "";
-      g.addEventListener("mousemove", (e) => showTip(e, item.task));
-      g.addEventListener("mouseleave", hideTip);
-      g.addEventListener("click", () => { if (item.task.url) window.open(item.task.url, "_blank"); });
+  for (const arr of Object.values(groups)) {
+    if (arr.length === 1) continue;
+    const R = 0.02;
+    arr.forEach((p, i) => {
+      const a = (i / arr.length) * Math.PI * 2;
+      p.x += Math.cos(a) * R;
+      p.y += Math.sin(a) * R;
     });
   }
 }
 
-function renderList(tasks) {
-  const tbody = document.getElementById("task-list");
-  tbody.innerHTML = "";
-  const sorted = [...tasks].sort((a,b) => (daysUntil(a.due) ?? 9999) - (daysUntil(b.due) ?? 9999));
-  for (const task of sorted) {
-    const dleft = daysUntil(task.due);
-    const dlabel = dleft == null ? "-" : (dleft === 0 ? "D-day" : (dleft > 0 ? "D-" + dleft : "D+" + (-dleft)));
-    const statusKey = (task.status || "").replace(/\s/g,'');
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><a href="${task.url}" target="_blank">${escapeHtml(task.name || "(제목 없음)")}</a></td>
-      <td>${task.status ? `<span class="status-pill status-${statusKey}">${escapeHtml(task.status)}</span>` : "-"}</td>
-      <td>${task.priority ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${PRIORITY_COLORS[task.priority]};margin-right:6px;vertical-align:-1px"></span>${PRIORITY_LABELS[task.priority]}` : "-"}</td>
-      <td>${task.due ?? "-"}</td>
-      <td>${dlabel}</td>
-    `;
-    tbody.appendChild(tr);
+function formatDate(s) {
+  if (!s) return "—";
+  return s.length > 10 ? s.slice(0, 10) : s;
+}
+function daysFromNow(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  if (isNaN(d)) return null;
+  return Math.ceil((d - new Date()) / (1000 * 60 * 60 * 24));
+}
+
+function render(data) {
+  const status = document.getElementById("status");
+  const svg = document.getElementById("chart");
+  const list = document.getElementById("list");
+  const legend = document.getElementById("legend");
+  const meta = document.getElementById("meta");
+  const tip = document.getElementById("tooltip");
+
+  svg.innerHTML = "";
+  list.innerHTML = "";
+  legend.innerHTML = "";
+
+  meta.textContent = `${data.count}개 task · ${new Date(data.snapshotAt).toLocaleTimeString("ko-KR")} 기준`;
+  status.textContent = data.count === 0 ? "표시할 task가 없습니다 (모두 Completed이거
+ub098 비어있음)." : "";
+
+  drawFrame(svg);
+
+  // 점 조집
+  const points = data.tasks.map(t => ({
+    x: scaleX(t.urgency),
+    y: scaleY(t.importance),
+    r: radiusFor(t.importance),
+    color: colorForCat3(t.category3),
+    task: t
+  }));
+  jitterOverlaps(points);
+
+  for (const p of points) {
+    const cx = px(p.x), cy = py(p.y);
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("class", "grain");
+    c.setAttribute("cx", cx);
+    c.setAttribute("cy", cy);
+    c.setAttribute("r", p.r);
+    c.setAttribute("fill", p.color);
+    c.setAttribute("fill-opacity", "0.85");
+    c.setAttribute("stroke", "#ffffff");
+    c.setAttribute("stroke-width", "1");
+    c.addEventListener("click", () => window.open(p.task.url, "_blank"));
+    c.addEventListener("mouseenter", (e) => {
+      const t = p.task;
+      const d = daysFromNow(t.due);
+      const dueStr = t.due ? `${formatDate(t.due)} (${d == null ? "-" : d >= 0 ? `D-${d}` : `D+${-d}`})` : "—";
+      tip.innerHTML =
+        `<div class="t-name">${escapeHtml(t.name || "(제목 없음)")}</div>` +
+        (t.task ? `<div class="t-row">${escapeHtml(t.task)}</div>` : "") +
+        (t.epic ? `<div class="t-row"><b>EPIC</b> ${escapeHtml(t.epic)}</div>` : "") +
+        `<div class="t-row"><b>Urgency</b> ${t.urgency ?? "-"} · <b>Importance</b> ${t.importance ?? "-"}</div>` +
+        `<div class="t-row"><b>Due</b> ${dueStr}</div>` +
+        (t.start ? `<div class="t-row"><b>Start</b> ${formatDate(t.start)}</div>` : "") +
+        ((t.category1 || t.category2 || t.category3) ? `<div class="t-row"><b>Cat</b> ${[t.category1, t.category2, t.category3].filter(Boolean).join(" / ")}</div>` : "") +
+        (t.lead.length ? `<div class="t-row"><b>Lead</b> ${escapeHtml(t.lead.join(", "))}</div>` : "") +
+        (t.owner.length ? `<div class="t-row"><b>Owner</b> ${escapeHtml(t.owner.join(", "))}</div>` : "") +
+        (t.status ? `<div class="t-row"><b>Status</b> ${t.status}</div>` : "");
+      tip.style.opacity = "1";
+    });
+    c.addEventListener("mousemove", (e) => {
+      const wrap = document.getElementById("chart-wrap").getBoundingClientRect();
+      tip.style.left = (e.clientX - wrap.left + 12) + "px";
+      tip.style.top = (e.clientY - wrap.top + 12) + "px";
+    });
+    c.addEventListener("mouseleave", () => { tip.style.opacity = "0"; });
+    svg.appendChild(c);
+  }
+
+  // 범례
+  const cats = [...new Set(data.tasks.map(t => t.category3).filter(Boolean))];
+  cats.sort();
+  for (const cat of cats) {
+    legend.insertAdjacentHTML("beforeend",
+      `<span class="item"><span class="swatch" style="background:${colorForCat3(cat)}"></span>${escapeHtml(cat)}</span>`);
+  }
+  if (data.tasks.some(t => !t.category3)) {
+    legend.insertAdjacentHTML("beforeend",
+      `<span class="item"><span class="swatch" style="background:${CAT3_COLORS._none}"></span>(Category 3 없음)</span>`);
+  }
+
+  // 아래 표
+  if (data.tasks.length) {
+    const sorted = [...data.tasks].sort((a, b) => {
+      const sa = (a.importance || 0) + (a.urgency || 0);
+      const sb = (b.importance || 0) + (b.urgency || 0);
+      return sb - sa;
+    });
+    let html = `<table class="task-list"><thead><tr>
+      <th>Sub-Task</th><th>U</th><th>I</th><th>Cat 3</th><th>Due</th><th>Lead</th><th>Status</th>
+      </tr></thead><tbody>`;
+    for (const t of sorted) {
+      html += `<tr>
+        <td><a href="${t.url}" target="_blank">${escapeHtml(t.name || "(제목 없음)")}</a></td>
+        <td>${t.urgency ?? "-"}</td>
+        <td>${t.importance ?? "-"}</td>
+        <td>${escapeHtml(t.category3 || "-")}</td>
+        <td>${formatDate(t.due)}</td>
+        <td>${escapeHtml(t.lead.join(", ") || "-")}</td>
+        <td>${escapeHtml(t.status || "-")}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+    list.innerHTML = html;
   }
 }
 
-async function load() {
-  const btn = document.getElementById("reload");
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function loadData() {
   const status = document.getElementById("status");
-  btn.disabled = true;
-  status.innerHTML = `<div class="loading">Notion에서 불러오는 중…</div>`;
-  drawChartFrame();
+  status.textContent = "로딩 중…";
+  status.classList.remove("err");
   try {
-    const r = await fetch("/api/tasks");
+    const r = await fetch("/api/tasks", { cache: "no-store" });
+    const j = await r.json();
     if (!r.ok) {
-      const txt = await r.text();
-      status.innerHTML = `<div class="err">로딩 실패 (${r.status}): ${escapeHtml(txt.slice(0, 300))}</div>`;
-      btn.disabled = false;
+      status.innerHTML = `<div class="err">로딩 실패 (${r.status}): ${escapeHtml(JSON.stringify(j))}</div>`;
       return;
     }
-    const data = await r.json();
-    status.innerHTML = "";
-    drawChartFrame();
-    drawGrains(data.tasks || []);
-    renderList(data.tasks || []);
-    document.getElementById("meta").textContent = `총 ${data.count}개 task`;
-    document.getElementById("foot-right").textContent = `마지막 동기화 ${new Date(data.snapshotAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`;
+    render(j);
   } catch (e) {
     status.innerHTML = `<div class="err">네트워크 오류: ${escapeHtml(String(e))}</div>`;
-  } finally {
-    btn.disabled = false;
   }
 }
 
-document.getElementById("reload").addEventListener("click", load);
-load();
+loadData();
 </script>
 </body>
 </html>
