@@ -1,12 +1,28 @@
 // Vercel Serverless Function: /api/tasks
 // Notion API 2025-09-03 (multi data source 지원)
-// 1) GET /v1/databases/{id} 로 data source 목록 조회
-// 2) 각 data source를 POST /v1/data_sources/{id}/query 로 조회
+// - DB 안의 여러 data source를 순회
+// - 각 data source의 스키마를 먼저 조회해서 있는 속성에 맞게 필터/매핑
+// - Name 또는 title 속성이 없는 data source는 건너뜀
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2025-09-03";
 
-function getProp(page, name) { return page.properties?.[name]; }
+function findPropByType(props, type) {
+  for (const [name, def] of Object.entries(props || {})) {
+    if (def.type === type) return name;
+  }
+  return null;
+}
+function findPropByName(props, candidates) {
+  if (!props) return null;
+  const lower = Object.keys(props).reduce((acc, k) => { acc[k.toLowerCase()] = k; return acc; }, {});
+  for (const c of candidates) {
+    const hit = lower[c.toLowerCase()];
+    if (hit) return hit;
+  }
+  return null;
+}
+
 function readTitle(prop) {
   if (!prop || prop.type !== "title") return "";
   return (prop.title || []).map(t => t.plain_text).join("");
@@ -56,7 +72,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 1) DB 메타 조회 → data_sources 목록
+    // 1) DB 메타 조회
     const dbResp = await notionFetch(`${NOTION_API}/databases/${databaseId}`, token);
     if (!dbResp.ok) {
       const t = await dbResp.text();
@@ -70,40 +86,74 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // 2) 각 data source를 조회 (Status != Completed 필터)
-    const filter = {
-      or: [
-        { property: "Status", select: { does_not_equal: "Completed" } },
-        { property: "Status", select: { is_empty: true } }
-      ]
-    };
-
     const tasks = [];
+    const skipped = [];
+
     for (const ds of dataSources) {
+      // 1.5) 이 data source의 스키마 조회
+      const schemaResp = await notionFetch(`${NOTION_API}/data_sources/${ds.id}`, token);
+      if (!schemaResp.ok) {
+        skipped.push({ id: ds.id, reason: `schema fetch failed (${schemaResp.status})` });
+        continue;
+      }
+      const schema = await schemaResp.json();
+      const props = schema.properties || {};
+
+      // 속성 이름 자동 감지 (소문자 무관)
+      const titleKey = findPropByName(props, ["Name", "Title", "이름", "제목"]) || findPropByType(props, "title");
+      const statusKey = findPropByName(props, ["Status", "상태"]);
+      const priorityKey = findPropByName(props, ["Priority", "우선순위"]);
+      const dueKey = findPropByName(props, ["Due Date", "Due", "Deadline", "마감일"]);
+      const assignKey = findPropByName(props, ["Assign", "Assignee", "담당자"]);
+
+      if (!titleKey) {
+        skipped.push({ id: ds.id, reason: "no title property" });
+        continue;
+      }
+
+      // 2) 조건부 필터 (Status 속성이 있을 때만)
+      const body = { page_size: 100 };
+      const statusProp = statusKey ? props[statusKey] : null;
+      if (statusKey && statusProp) {
+        if (statusProp.type === "select") {
+          body.filter = {
+            or: [
+              { property: statusKey, select: { does_not_equal: "Completed" } },
+              { property: statusKey, select: { is_empty: true } }
+            ]
+          };
+        } else if (statusProp.type === "status") {
+          body.filter = {
+            or: [
+              { property: statusKey, status: { does_not_equal: "Completed" } },
+              { property: statusKey, status: { is_empty: true } }
+            ]
+          };
+        }
+      }
+
       let cursor = undefined;
       do {
-        const body = { filter, page_size: 100 };
-        if (cursor) body.start_cursor = cursor;
+        const reqBody = { ...body };
+        if (cursor) reqBody.start_cursor = cursor;
         const r = await notionFetch(`${NOTION_API}/data_sources/${ds.id}/query`, token, {
           method: "POST",
-          body: JSON.stringify(body)
+          body: JSON.stringify(reqBody)
         });
         if (!r.ok) {
           const t = await r.text();
-          res.status(r.status).json({
-            error: "Notion API error (data source query)",
-            dataSourceId: ds.id,
-            detail: t
-          });
-          return;
+          skipped.push({ id: ds.id, reason: `query failed (${r.status})`, detail: t });
+          break;
         }
         const data = await r.json();
         for (const page of data.results || []) {
-          const name = readTitle(getProp(page, "Name"));
-          const status = readSelect(getProp(page, "Status"));
-          const priorityStr = readSelect(getProp(page, "Priority"));
-          const due = readDate(getProp(page, "Due Date"));
-          const assignees = readPeople(getProp(page, "Assign"));
+          const name = readTitle(page.properties?.[titleKey]);
+          const status = statusKey ? readSelect(page.properties?.[statusKey]) : null;
+          const priorityStr = priorityKey ? readSelect(page.properties?.[priorityKey]) : null;
+          const due = dueKey ? readDate(page.properties?.[dueKey]) : null;
+          const assignees = assignKey ? readPeople(page.properties?.[assignKey]) : [];
+          // 클라이언트에서도 Completed 걸러내기 (filter 적용 안된 data source 용)
+          if (status === "Completed") continue;
           tasks.push({
             id: page.id,
             name,
@@ -112,7 +162,8 @@ module.exports = async (req, res) => {
             priorityLabel: priorityStr,
             due,
             assignees,
-            url: page.url
+            url: page.url,
+            dataSourceId: ds.id
           });
         }
         cursor = data.has_more ? data.next_cursor : undefined;
@@ -123,7 +174,8 @@ module.exports = async (req, res) => {
       snapshotAt: new Date().toISOString(),
       count: tasks.length,
       tasks,
-      dataSourceCount: dataSources.length
+      dataSourceCount: dataSources.length,
+      skipped
     });
   } catch (err) {
     res.status(500).json({ error: "Server error", detail: String(err) });
